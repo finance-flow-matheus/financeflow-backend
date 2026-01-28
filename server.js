@@ -152,9 +152,10 @@ app.get('/api/accounts', authMiddleware, async (req, res) => {
 app.post('/api/accounts', authMiddleware, async (req, res) => {
   try {
     const { name, type, currency, balance } = req.body;
+    const accountType = type || 'checking'; // Valor padrão: checking
     const result = await pool.query(
       'INSERT INTO accounts (user_id, name, type, currency, balance) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [req.userId, name, type, currency, balance || 0]
+      [req.userId, name, accountType, currency, balance || 0]
     );
     res.json(result.rows[0]);
   } catch (error) {

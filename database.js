@@ -73,6 +73,7 @@ const createTables = async () => {
         amount DECIMAL(15, 2) NOT NULL,
         description TEXT,
         date DATE NOT NULL,
+        is_recurring BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -91,6 +92,132 @@ const createTables = async () => {
         exchange_rate DECIMAL(10, 6) NOT NULL,
         date DATE NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // ========== NOVAS TABELAS ==========
+
+    // Tabela de metas financeiras
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS financial_goals (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        target_amount DECIMAL(15, 2) NOT NULL,
+        current_amount DECIMAL(15, 2) DEFAULT 0,
+        deadline DATE,
+        category VARCHAR(100),
+        status VARCHAR(50) DEFAULT 'in_progress',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Tabela de investimentos
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS investments (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(100) NOT NULL,
+        amount DECIMAL(15, 2) NOT NULL,
+        current_value DECIMAL(15, 2) NOT NULL,
+        currency VARCHAR(3) NOT NULL,
+        purchase_date DATE NOT NULL,
+        broker VARCHAR(255),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Tabela de ativos
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS assets (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(100) NOT NULL,
+        value DECIMAL(15, 2) NOT NULL,
+        currency VARCHAR(3) NOT NULL,
+        purchase_date DATE,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Tabela de passivos (dívidas)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS liabilities (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(100) NOT NULL,
+        amount DECIMAL(15, 2) NOT NULL,
+        interest_rate DECIMAL(5, 2),
+        due_date DATE,
+        monthly_payment DECIMAL(15, 2),
+        currency VARCHAR(3) NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Tabela de transações recorrentes
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS recurring_transactions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+        type VARCHAR(50) NOT NULL,
+        amount DECIMAL(15, 2) NOT NULL,
+        description TEXT,
+        frequency VARCHAR(50) NOT NULL,
+        next_date DATE NOT NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Tabela de orçamentos
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS budgets (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        category_id INTEGER REFERENCES categories(id) ON DELETE CASCADE,
+        month INTEGER NOT NULL,
+        year INTEGER NOT NULL,
+        limit_amount DECIMAL(15, 2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, category_id, month, year)
+      )
+    `);
+
+    // Tabela de conquistas
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS achievements (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        achievement_type VARCHAR(100) NOT NULL,
+        unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        streak_count INTEGER DEFAULT 0
+      )
+    `);
+
+    // Tabela de snapshots financeiros mensais
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS financial_snapshots (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        month INTEGER NOT NULL,
+        year INTEGER NOT NULL,
+        total_assets DECIMAL(15, 2) DEFAULT 0,
+        total_liabilities DECIMAL(15, 2) DEFAULT 0,
+        net_worth DECIMAL(15, 2) DEFAULT 0,
+        total_income DECIMAL(15, 2) DEFAULT 0,
+        total_expenses DECIMAL(15, 2) DEFAULT 0,
+        savings_rate DECIMAL(5, 2) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, month, year)
       )
     `);
 
@@ -127,10 +254,15 @@ const insertInitialData = async (userId) => {
       VALUES 
         ($1, 'Salário', 'income', '#10b981'),
         ($1, 'Freelance', 'income', '#3b82f6'),
+        ($1, 'Investimentos', 'income', '#8b5cf6'),
         ($1, 'Alimentação', 'expense', '#ef4444'),
         ($1, 'Transporte', 'expense', '#f59e0b'),
         ($1, 'Moradia', 'expense', '#8b5cf6'),
-        ($1, 'Lazer', 'expense', '#ec4899')
+        ($1, 'Saúde', 'expense', '#06b6d4'),
+        ($1, 'Educação', 'expense', '#3b82f6'),
+        ($1, 'Lazer', 'expense', '#ec4899'),
+        ($1, 'Seguros', 'expense', '#6366f1'),
+        ($1, 'Outros', 'expense', '#64748b')
     `, [userId]);
 
     // Criar fontes de renda padrão
@@ -138,7 +270,8 @@ const insertInitialData = async (userId) => {
       INSERT INTO income_sources (user_id, name, description)
       VALUES 
         ($1, 'Empresa Principal', 'Salário mensal'),
-        ($1, 'Freelance', 'Trabalhos extras')
+        ($1, 'Freelance', 'Trabalhos extras'),
+        ($1, 'Investimentos', 'Dividendos e rendimentos')
     `, [userId]);
 
     await client.query('COMMIT');

@@ -573,6 +573,470 @@ app.delete('/api/exchanges/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// ==================== FINANCIAL GOALS ====================
+app.get('/api/goals', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM financial_goals WHERE user_id = $1 ORDER BY deadline',
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao buscar metas:', error);
+    res.status(500).json({ error: 'Erro ao buscar metas' });
+  }
+});
+
+app.post('/api/goals', authMiddleware, async (req, res) => {
+  try {
+    const { name, targetAmount, currentAmount, deadline, category } = req.body;
+    const result = await pool.query(
+      'INSERT INTO financial_goals (user_id, name, target_amount, current_amount, deadline, category) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [req.userId, name, targetAmount, currentAmount || 0, deadline, category]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao criar meta:', error);
+    res.status(500).json({ error: 'Erro ao criar meta' });
+  }
+});
+
+app.put('/api/goals/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, targetAmount, currentAmount, deadline, category, status } = req.body;
+    const result = await pool.query(
+      'UPDATE financial_goals SET name = $1, target_amount = $2, current_amount = $3, deadline = $4, category = $5, status = $6 WHERE id = $7 AND user_id = $8 RETURNING *',
+      [name, targetAmount, currentAmount, deadline, category, status, id, req.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Meta não encontrada' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao atualizar meta:', error);
+    res.status(500).json({ error: 'Erro ao atualizar meta' });
+  }
+});
+
+app.delete('/api/goals/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM financial_goals WHERE id = $1 AND user_id = $2', [id, req.userId]);
+    res.json({ message: 'Meta deletada com sucesso' });
+  } catch (error) {
+    console.error('Erro ao deletar meta:', error);
+    res.status(500).json({ error: 'Erro ao deletar meta' });
+  }
+});
+
+// ==================== INVESTMENTS ====================
+app.get('/api/investments', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM investments WHERE user_id = $1 ORDER BY purchase_date DESC',
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao buscar investimentos:', error);
+    res.status(500).json({ error: 'Erro ao buscar investimentos' });
+  }
+});
+
+app.post('/api/investments', authMiddleware, async (req, res) => {
+  try {
+    const { name, type, amount, currentValue, currency, purchaseDate, broker, notes } = req.body;
+    const result = await pool.query(
+      'INSERT INTO investments (user_id, name, type, amount, current_value, currency, purchase_date, broker, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [req.userId, name, type, amount, currentValue || amount, currency, purchaseDate, broker, notes]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao criar investimento:', error);
+    res.status(500).json({ error: 'Erro ao criar investimento' });
+  }
+});
+
+app.put('/api/investments/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, type, amount, currentValue, currency, purchaseDate, broker, notes } = req.body;
+    const result = await pool.query(
+      'UPDATE investments SET name = $1, type = $2, amount = $3, current_value = $4, currency = $5, purchase_date = $6, broker = $7, notes = $8 WHERE id = $9 AND user_id = $10 RETURNING *',
+      [name, type, amount, currentValue, currency, purchaseDate, broker, notes, id, req.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Investimento não encontrado' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao atualizar investimento:', error);
+    res.status(500).json({ error: 'Erro ao atualizar investimento' });
+  }
+});
+
+app.delete('/api/investments/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM investments WHERE id = $1 AND user_id = $2', [id, req.userId]);
+    res.json({ message: 'Investimento deletado com sucesso' });
+  } catch (error) {
+    console.error('Erro ao deletar investimento:', error);
+    res.status(500).json({ error: 'Erro ao deletar investimento' });
+  }
+});
+
+app.get('/api/investments/allocation', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT type, SUM(current_value) as total FROM investments WHERE user_id = $1 GROUP BY type',
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao buscar alocação:', error);
+    res.status(500).json({ error: 'Erro ao buscar alocação' });
+  }
+});
+
+// ==================== ASSETS ====================
+app.get('/api/assets', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM assets WHERE user_id = $1 ORDER BY created_at DESC',
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao buscar ativos:', error);
+    res.status(500).json({ error: 'Erro ao buscar ativos' });
+  }
+});
+
+app.post('/api/assets', authMiddleware, async (req, res) => {
+  try {
+    const { name, type, value, currency, purchaseDate, description } = req.body;
+    const result = await pool.query(
+      'INSERT INTO assets (user_id, name, type, value, currency, purchase_date, description) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [req.userId, name, type, value, currency, purchaseDate, description]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao criar ativo:', error);
+    res.status(500).json({ error: 'Erro ao criar ativo' });
+  }
+});
+
+app.put('/api/assets/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, type, value, currency, purchaseDate, description } = req.body;
+    const result = await pool.query(
+      'UPDATE assets SET name = $1, type = $2, value = $3, currency = $4, purchase_date = $5, description = $6 WHERE id = $7 AND user_id = $8 RETURNING *',
+      [name, type, value, currency, purchaseDate, description, id, req.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Ativo não encontrado' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao atualizar ativo:', error);
+    res.status(500).json({ error: 'Erro ao atualizar ativo' });
+  }
+});
+
+app.delete('/api/assets/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM assets WHERE id = $1 AND user_id = $2', [id, req.userId]);
+    res.json({ message: 'Ativo deletado com sucesso' });
+  } catch (error) {
+    console.error('Erro ao deletar ativo:', error);
+    res.status(500).json({ error: 'Erro ao deletar ativo' });
+  }
+});
+
+// ==================== LIABILITIES ====================
+app.get('/api/liabilities', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM liabilities WHERE user_id = $1 ORDER BY due_date',
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao buscar passivos:', error);
+    res.status(500).json({ error: 'Erro ao buscar passivos' });
+  }
+});
+
+app.post('/api/liabilities', authMiddleware, async (req, res) => {
+  try {
+    const { name, type, amount, interestRate, dueDate, monthlyPayment, currency, description } = req.body;
+    const result = await pool.query(
+      'INSERT INTO liabilities (user_id, name, type, amount, interest_rate, due_date, monthly_payment, currency, description) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [req.userId, name, type, amount, interestRate, dueDate, monthlyPayment, currency, description]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao criar passivo:', error);
+    res.status(500).json({ error: 'Erro ao criar passivo' });
+  }
+});
+
+app.put('/api/liabilities/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, type, amount, interestRate, dueDate, monthlyPayment, currency, description } = req.body;
+    const result = await pool.query(
+      'UPDATE liabilities SET name = $1, type = $2, amount = $3, interest_rate = $4, due_date = $5, monthly_payment = $6, currency = $7, description = $8 WHERE id = $9 AND user_id = $10 RETURNING *',
+      [name, type, amount, interestRate, dueDate, monthlyPayment, currency, description, id, req.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Passivo não encontrado' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao atualizar passivo:', error);
+    res.status(500).json({ error: 'Erro ao atualizar passivo' });
+  }
+});
+
+app.delete('/api/liabilities/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM liabilities WHERE id = $1 AND user_id = $2', [id, req.userId]);
+    res.json({ message: 'Passivo deletado com sucesso' });
+  } catch (error) {
+    console.error('Erro ao deletar passivo:', error);
+    res.status(500).json({ error: 'Erro ao deletar passivo' });
+  }
+});
+
+// ==================== BUDGETS ====================
+app.get('/api/budgets', authMiddleware, async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    let query = 'SELECT b.*, c.name as category_name, c.color as category_color FROM budgets b LEFT JOIN categories c ON b.category_id = c.id WHERE b.user_id = $1';
+    const params = [req.userId];
+    
+    if (month && year) {
+      query += ' AND b.month = $2 AND b.year = $3';
+      params.push(month, year);
+    }
+    
+    query += ' ORDER BY c.name';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao buscar orçamentos:', error);
+    res.status(500).json({ error: 'Erro ao buscar orçamentos' });
+  }
+});
+
+app.post('/api/budgets', authMiddleware, async (req, res) => {
+  try {
+    const { categoryId, month, year, limitAmount } = req.body;
+    const result = await pool.query(
+      'INSERT INTO budgets (user_id, category_id, month, year, limit_amount) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (user_id, category_id, month, year) DO UPDATE SET limit_amount = $5 RETURNING *',
+      [req.userId, categoryId, month, year, limitAmount]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao criar orçamento:', error);
+    res.status(500).json({ error: 'Erro ao criar orçamento' });
+  }
+});
+
+app.get('/api/budgets/status', authMiddleware, async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    const currentMonth = month || new Date().getMonth() + 1;
+    const currentYear = year || new Date().getFullYear();
+    
+    // Buscar orçamentos do mês
+    const budgets = await pool.query(
+      'SELECT b.*, c.name as category_name, c.color as category_color FROM budgets b LEFT JOIN categories c ON b.category_id = c.id WHERE b.user_id = $1 AND b.month = $2 AND b.year = $3',
+      [req.userId, currentMonth, currentYear]
+    );
+    
+    // Buscar gastos reais do mês por categoria
+    const expenses = await pool.query(
+      "SELECT category_id, SUM(amount) as spent FROM transactions WHERE user_id = $1 AND type = 'expense' AND EXTRACT(MONTH FROM date) = $2 AND EXTRACT(YEAR FROM date) = $3 GROUP BY category_id",
+      [req.userId, currentMonth, currentYear]
+    );
+    
+    const expenseMap = {};
+    expenses.rows.forEach(e => {
+      expenseMap[e.category_id] = parseFloat(e.spent);
+    });
+    
+    const result = budgets.rows.map(budget => ({
+      ...budget,
+      spent: expenseMap[budget.category_id] || 0,
+      remaining: parseFloat(budget.limit_amount) - (expenseMap[budget.category_id] || 0),
+      percentage: ((expenseMap[budget.category_id] || 0) / parseFloat(budget.limit_amount)) * 100
+    }));
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Erro ao buscar status do orçamento:', error);
+    res.status(500).json({ error: 'Erro ao buscar status do orçamento' });
+  }
+});
+
+// ==================== METRICS ====================
+app.get('/api/metrics/dashboard', authMiddleware, async (req, res) => {
+  try {
+    const currentMonth = new Date().getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+    
+    // Total em contas
+    const accountsResult = await pool.query(
+      'SELECT currency, SUM(balance) as total FROM accounts WHERE user_id = $1 GROUP BY currency',
+      [req.userId]
+    );
+    
+    // Total em investimentos
+    const investmentsResult = await pool.query(
+      'SELECT currency, SUM(current_value) as total FROM investments WHERE user_id = $1 GROUP BY currency',
+      [req.userId]
+    );
+    
+    // Total em ativos
+    const assetsResult = await pool.query(
+      'SELECT currency, SUM(value) as total FROM assets WHERE user_id = $1 GROUP BY currency',
+      [req.userId]
+    );
+    
+    // Total em passivos
+    const liabilitiesResult = await pool.query(
+      'SELECT currency, SUM(amount) as total FROM liabilities WHERE user_id = $1 GROUP BY currency',
+      [req.userId]
+    );
+    
+    // Receitas e despesas do mês
+    const monthlyTransactions = await pool.query(
+      "SELECT type, SUM(amount) as total FROM transactions WHERE user_id = $1 AND EXTRACT(MONTH FROM date) = $2 AND EXTRACT(YEAR FROM date) = $3 GROUP BY type",
+      [req.userId, currentMonth, currentYear]
+    );
+    
+    const income = monthlyTransactions.rows.find(t => t.type === 'income')?.total || 0;
+    const expenses = monthlyTransactions.rows.find(t => t.type === 'expense')?.total || 0;
+    
+    // Calcular totais por moeda
+    const byCurrency = {};
+    
+    accountsResult.rows.forEach(r => {
+      if (!byCurrency[r.currency]) byCurrency[r.currency] = { assets: 0, liabilities: 0 };
+      byCurrency[r.currency].assets += parseFloat(r.total);
+    });
+    
+    investmentsResult.rows.forEach(r => {
+      if (!byCurrency[r.currency]) byCurrency[r.currency] = { assets: 0, liabilities: 0 };
+      byCurrency[r.currency].assets += parseFloat(r.total);
+    });
+    
+    assetsResult.rows.forEach(r => {
+      if (!byCurrency[r.currency]) byCurrency[r.currency] = { assets: 0, liabilities: 0 };
+      byCurrency[r.currency].assets += parseFloat(r.total);
+    });
+    
+    liabilitiesResult.rows.forEach(r => {
+      if (!byCurrency[r.currency]) byCurrency[r.currency] = { assets: 0, liabilities: 0 };
+      byCurrency[r.currency].liabilities += parseFloat(r.total);
+    });
+    
+    // Calcular métricas
+    const metrics = {};
+    Object.keys(byCurrency).forEach(currency => {
+      const data = byCurrency[currency];
+      metrics[currency] = {
+        totalAssets: data.assets,
+        totalLiabilities: data.liabilities,
+        netWorth: data.assets - data.liabilities,
+        debtRatio: data.assets > 0 ? (data.liabilities / data.assets) * 100 : 0
+      };
+    });
+    
+    // Índice de poupança
+    const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
+    
+    // Reserva de emergência (considerando apenas BRL)
+    const brlAccounts = accountsResult.rows.find(r => r.currency === 'BRL')?.total || 0;
+    const emergencyFundMonths = expenses > 0 ? brlAccounts / expenses : 0;
+    
+    res.json({
+      byCurrency: metrics,
+      monthly: {
+        income: parseFloat(income),
+        expenses: parseFloat(expenses),
+        balance: parseFloat(income) - parseFloat(expenses),
+        savingsRate: savingsRate.toFixed(2)
+      },
+      emergencyFund: {
+        months: emergencyFundMonths.toFixed(1),
+        amount: parseFloat(brlAccounts)
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao calcular métricas:', error);
+    res.status(500).json({ error: 'Erro ao calcular métricas' });
+  }
+});
+
+// ==================== REPORTS ====================
+app.get('/api/reports/category-breakdown', authMiddleware, async (req, res) => {
+  try {
+    const { month, year, type } = req.query;
+    const currentMonth = month || new Date().getMonth() + 1;
+    const currentYear = year || new Date().getFullYear();
+    const txType = type || 'expense';
+    
+    const result = await pool.query(
+      "SELECT c.name, c.color, SUM(t.amount) as total FROM transactions t LEFT JOIN categories c ON t.category_id = c.id WHERE t.user_id = $1 AND t.type = $2 AND EXTRACT(MONTH FROM t.date) = $3 AND EXTRACT(YEAR FROM t.date) = $4 GROUP BY c.name, c.color ORDER BY total DESC",
+      [req.userId, txType, currentMonth, currentYear]
+    );
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao gerar relatório:', error);
+    res.status(500).json({ error: 'Erro ao gerar relatório' });
+  }
+});
+
+app.get('/api/reports/monthly-trend', authMiddleware, async (req, res) => {
+  try {
+    const { months } = req.query;
+    const monthsCount = months || 6;
+    
+    const result = await pool.query(
+      "SELECT EXTRACT(YEAR FROM date) as year, EXTRACT(MONTH FROM date) as month, type, SUM(amount) as total FROM transactions WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '$2 months' GROUP BY year, month, type ORDER BY year, month",
+      [req.userId, monthsCount]
+    );
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao gerar tendência:', error);
+    res.status(500).json({ error: 'Erro ao gerar tendência' });
+  }
+});
+
+// ==================== ACHIEVEMENTS ====================
+app.get('/api/achievements', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM achievements WHERE user_id = $1 ORDER BY unlocked_at DESC',
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao buscar conquistas:', error);
+    res.status(500).json({ error: 'Erro ao buscar conquistas' });
+  }
+});
+
 // Iniciar servidor
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 API rodando em http://0.0.0.0:${PORT}`);

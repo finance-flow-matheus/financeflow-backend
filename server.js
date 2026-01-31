@@ -151,11 +151,11 @@ app.get('/api/accounts', authMiddleware, async (req, res) => {
 
 app.post('/api/accounts', authMiddleware, async (req, res) => {
   try {
-    const { name, type, currency, balance } = req.body;
+    const { name, type, currency, balance, isEmergencyFund } = req.body;
     const accountType = type || 'checking'; // Valor padrão: checking
     const result = await pool.query(
-      'INSERT INTO accounts (user_id, name, type, currency, balance) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [req.userId, name, accountType, currency, balance || 0]
+      'INSERT INTO accounts (user_id, name, type, currency, balance, is_emergency_fund) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [req.userId, name, accountType, currency, balance || 0, isEmergencyFund || false]
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -167,10 +167,10 @@ app.post('/api/accounts', authMiddleware, async (req, res) => {
 app.put('/api/accounts/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, type, currency } = req.body;
+    const { name, type, currency, isEmergencyFund } = req.body;
     const result = await pool.query(
-      'UPDATE accounts SET name = $1, type = $2, currency = $3 WHERE id = $4 AND user_id = $5 RETURNING *',
-      [name, type, currency, id, req.userId]
+      'UPDATE accounts SET name = $1, type = $2, currency = $3, is_emergency_fund = $4 WHERE id = $5 AND user_id = $6 RETURNING *',
+      [name, type, currency, isEmergencyFund !== undefined ? isEmergencyFund : false, id, req.userId]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Conta não encontrada' });
@@ -969,9 +969,19 @@ app.get('/api/metrics/dashboard', authMiddleware, async (req, res) => {
     // Índice de poupança
     const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
     
-    // Reserva de emergência (considerando apenas BRL)
-    const brlAccounts = accountsResult.rows.find(r => r.currency === 'BRL')?.total || 0;
-    const emergencyFundMonths = expenses > 0 ? brlAccounts / expenses : 0;
+    // Reserva de emergência (apenas contas marcadas como is_emergency_fund)
+    const emergencyFundResult = await pool.query(
+      'SELECT currency, SUM(balance) as total FROM accounts WHERE user_id = $1 AND is_emergency_fund = true GROUP BY currency',
+      [req.userId]
+    );
+    
+    const emergencyFundByCurrency = {};
+    emergencyFundResult.rows.forEach(r => {
+      emergencyFundByCurrency[r.currency] = parseFloat(r.total);
+    });
+    
+    const brlEmergencyFund = emergencyFundByCurrency['BRL'] || 0;
+    const emergencyFundMonths = expenses > 0 ? brlEmergencyFund / expenses : 0;
     
     res.json({
       byCurrency: metrics,
@@ -983,7 +993,7 @@ app.get('/api/metrics/dashboard', authMiddleware, async (req, res) => {
       },
       emergencyFund: {
         months: emergencyFundMonths.toFixed(1),
-        amount: parseFloat(brlAccounts)
+        byCurrency: emergencyFundByCurrency
       }
     });
   } catch (error) {

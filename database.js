@@ -34,6 +34,7 @@ const createTables = async () => {
         type VARCHAR(50) NOT NULL,
         currency VARCHAR(3) NOT NULL,
         balance DECIMAL(15, 2) DEFAULT 0,
+        is_emergency_fund BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);

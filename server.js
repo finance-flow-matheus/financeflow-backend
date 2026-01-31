@@ -479,6 +479,60 @@ app.post('/api/exchanges', authMiddleware, async (req, res) => {
   }
 });
 
+app.put('/api/exchanges/:id', authMiddleware, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    const { id } = req.params;
+    const { fromAccountId, toAccountId, fromAmount, toAmount, fromCurrency, toCurrency, exchangeRate, date } = req.body;
+    
+    // Buscar operação antiga para reverter saldos
+    const oldResult = await client.query('SELECT * FROM exchange_operations WHERE id = $1 AND user_id = $2', [id, req.userId]);
+    if (oldResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Operação não encontrada' });
+    }
+    
+    const oldExchange = oldResult.rows[0];
+    
+    // Reverter saldos antigos
+    await client.query(
+      'UPDATE accounts SET balance = balance + $1 WHERE id = $2 AND user_id = $3',
+      [oldExchange.from_amount, oldExchange.from_account_id, req.userId]
+    );
+    await client.query(
+      'UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND user_id = $3',
+      [oldExchange.to_amount, oldExchange.to_account_id, req.userId]
+    );
+    
+    // Atualizar operação
+    const result = await client.query(
+      'UPDATE exchange_operations SET from_account_id = $1, to_account_id = $2, from_amount = $3, to_amount = $4, from_currency = $5, to_currency = $6, exchange_rate = $7, date = $8 WHERE id = $9 AND user_id = $10 RETURNING *',
+      [fromAccountId, toAccountId, fromAmount, toAmount, fromCurrency, toCurrency, exchangeRate, date, id, req.userId]
+    );
+    
+    // Aplicar novos saldos
+    await client.query(
+      'UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND user_id = $3',
+      [fromAmount, fromAccountId, req.userId]
+    );
+    await client.query(
+      'UPDATE accounts SET balance = balance + $1 WHERE id = $2 AND user_id = $3',
+      [toAmount, toAccountId, req.userId]
+    );
+    
+    await client.query('COMMIT');
+    res.json(result.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Erro ao atualizar câmbio:', error);
+    res.status(500).json({ error: 'Erro ao atualizar operação de câmbio' });
+  } finally {
+    client.release();
+  }
+});
+
 app.delete('/api/exchanges/:id', authMiddleware, async (req, res) => {
   const client = await pool.connect();
   try {

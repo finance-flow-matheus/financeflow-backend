@@ -105,6 +105,7 @@ const createTables = async () => {
         name VARCHAR(255) NOT NULL,
         target_amount DECIMAL(15, 2) NOT NULL,
         current_amount DECIMAL(15, 2) DEFAULT 0,
+        currency VARCHAR(3) NOT NULL DEFAULT 'BRL',
         deadline DATE,
         category VARCHAR(100),
         status VARCHAR(50) DEFAULT 'in_progress',
@@ -187,8 +188,9 @@ const createTables = async () => {
         month INTEGER NOT NULL,
         year INTEGER NOT NULL,
         limit_amount DECIMAL(15, 2) NOT NULL,
+        currency VARCHAR(3) NOT NULL DEFAULT 'BRL',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, category_id, month, year)
+        UNIQUE(user_id, category_id, month, year, currency)
       )
     `);
 

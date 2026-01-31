@@ -589,10 +589,10 @@ app.get('/api/goals', authMiddleware, async (req, res) => {
 
 app.post('/api/goals', authMiddleware, async (req, res) => {
   try {
-    const { name, targetAmount, currentAmount, deadline, category } = req.body;
+    const { name, targetAmount, currentAmount, deadline, category, currency } = req.body;
     const result = await pool.query(
-      'INSERT INTO financial_goals (user_id, name, target_amount, current_amount, deadline, category) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [req.userId, name, targetAmount, currentAmount || 0, deadline, category]
+      'INSERT INTO financial_goals (user_id, name, target_amount, current_amount, currency, deadline, category) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [req.userId, name, targetAmount, currentAmount || 0, currency || 'BRL', deadline, category]
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -604,10 +604,10 @@ app.post('/api/goals', authMiddleware, async (req, res) => {
 app.put('/api/goals/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, targetAmount, currentAmount, deadline, category, status } = req.body;
+    const { name, targetAmount, currentAmount, currency, deadline, category, status } = req.body;
     const result = await pool.query(
-      'UPDATE financial_goals SET name = $1, target_amount = $2, current_amount = $3, deadline = $4, category = $5, status = $6 WHERE id = $7 AND user_id = $8 RETURNING *',
-      [name, targetAmount, currentAmount, deadline, category, status, id, req.userId]
+      'UPDATE financial_goals SET name = $1, target_amount = $2, current_amount = $3, currency = $4, deadline = $5, category = $6, status = $7 WHERE id = $8 AND user_id = $9 RETURNING *',
+      [name, targetAmount, currentAmount, currency, deadline, category, status, id, req.userId]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Meta não encontrada' });
@@ -837,10 +837,10 @@ app.get('/api/budgets', authMiddleware, async (req, res) => {
 
 app.post('/api/budgets', authMiddleware, async (req, res) => {
   try {
-    const { categoryId, month, year, limitAmount } = req.body;
+    const { categoryId, month, year, limitAmount, currency } = req.body;
     const result = await pool.query(
-      'INSERT INTO budgets (user_id, category_id, month, year, limit_amount) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (user_id, category_id, month, year) DO UPDATE SET limit_amount = $5 RETURNING *',
-      [req.userId, categoryId, month, year, limitAmount]
+      'INSERT INTO budgets (user_id, category_id, month, year, limit_amount, currency) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (user_id, category_id, month, year, currency) DO UPDATE SET limit_amount = $5 RETURNING *',
+      [req.userId, categoryId, month, year, limitAmount, currency || 'BRL']
     );
     res.json(result.rows[0]);
   } catch (error) {

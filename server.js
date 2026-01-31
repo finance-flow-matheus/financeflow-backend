@@ -922,8 +922,8 @@ app.get('/api/metrics/dashboard', authMiddleware, async (req, res) => {
       [req.userId, currentMonth, currentYear]
     );
     
-    const income = monthlyTransactions.rows.find(t => t.type === 'income')?.total || 0;
-    const expenses = monthlyTransactions.rows.find(t => t.type === 'expense')?.total || 0;
+    const income = monthlyTransactions.rows.find(t => t.type.toLowerCase() === 'income')?.total || 0;
+    const expenses = monthlyTransactions.rows.find(t => t.type.toLowerCase() === 'expense')?.total || 0;
     
     // Calcular totais por moeda
     const byCurrency = {};
@@ -950,6 +950,12 @@ app.get('/api/metrics/dashboard', authMiddleware, async (req, res) => {
     
     // Calcular métricas
     const metrics = {};
+    
+    // Se não há dados, criar estrutura padrão para BRL
+    if (Object.keys(byCurrency).length === 0) {
+      byCurrency['BRL'] = { assets: 0, liabilities: 0 };
+    }
+    
     Object.keys(byCurrency).forEach(currency => {
       const data = byCurrency[currency];
       metrics[currency] = {

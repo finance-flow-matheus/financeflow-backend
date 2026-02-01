@@ -916,14 +916,34 @@ app.get('/api/metrics/dashboard', authMiddleware, async (req, res) => {
       [req.userId]
     );
     
-    // Receitas e despesas do mês
+    // Receitas e despesas do mês POR MOEDA
     const monthlyTransactions = await pool.query(
-      "SELECT type, SUM(amount) as total FROM transactions WHERE user_id = $1 AND EXTRACT(MONTH FROM date) = $2 AND EXTRACT(YEAR FROM date) = $3 GROUP BY type",
+      `SELECT a.currency, t.type, SUM(t.amount) as total 
+       FROM transactions t
+       JOIN accounts a ON t.account_id = a.id
+       WHERE t.user_id = $1 
+       AND EXTRACT(MONTH FROM t.date) = $2 
+       AND EXTRACT(YEAR FROM t.date) = $3
+       GROUP BY a.currency, t.type`,
       [req.userId, currentMonth, currentYear]
     );
     
-    const income = monthlyTransactions.rows.find(t => t.type.toLowerCase() === 'income')?.total || 0;
-    const expenses = monthlyTransactions.rows.find(t => t.type.toLowerCase() === 'expense')?.total || 0;
+    // Organizar por moeda
+    const monthlyByCurrency = {};
+    monthlyTransactions.rows.forEach(row => {
+      if (!monthlyByCurrency[row.currency]) {
+        monthlyByCurrency[row.currency] = { income: 0, expenses: 0 };
+      }
+      if (row.type.toLowerCase() === 'income') {
+        monthlyByCurrency[row.currency].income += parseFloat(row.total);
+      } else if (row.type.toLowerCase() === 'expense') {
+        monthlyByCurrency[row.currency].expenses += parseFloat(row.total);
+      }
+    });
+    
+    // Garantir que BRL e EUR existam
+    if (!monthlyByCurrency['BRL']) monthlyByCurrency['BRL'] = { income: 0, expenses: 0 };
+    if (!monthlyByCurrency['EUR']) monthlyByCurrency['EUR'] = { income: 0, expenses: 0 };
     
     // Calcular totais por moeda
     const byCurrency = {};
@@ -958,16 +978,23 @@ app.get('/api/metrics/dashboard', authMiddleware, async (req, res) => {
     
     Object.keys(byCurrency).forEach(currency => {
       const data = byCurrency[currency];
+      const monthly = monthlyByCurrency[currency] || { income: 0, expenses: 0 };
+      const balance = monthly.income - monthly.expenses;
+      const savingsRate = monthly.income > 0 ? ((balance) / monthly.income) * 100 : 0;
+      
       metrics[currency] = {
         totalAssets: data.assets,
         totalLiabilities: data.liabilities,
         netWorth: data.assets - data.liabilities,
-        debtRatio: data.assets > 0 ? (data.liabilities / data.assets) * 100 : 0
+        debtRatio: data.assets > 0 ? (data.liabilities / data.assets) * 100 : 0,
+        monthly: {
+          income: monthly.income,
+          expenses: monthly.expenses,
+          balance: balance,
+          savingsRate: savingsRate.toFixed(2)
+        }
       };
     });
-    
-    // Índice de poupança
-    const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
     
     // Reserva de emergência (apenas contas marcadas como is_emergency_fund)
     const emergencyFundResult = await pool.query(
@@ -980,22 +1007,15 @@ app.get('/api/metrics/dashboard', authMiddleware, async (req, res) => {
       emergencyFundByCurrency[r.currency] = parseFloat(r.total);
     });
     
-    const brlEmergencyFund = emergencyFundByCurrency['BRL'] || 0;
-    const emergencyFundMonths = expenses > 0 ? brlEmergencyFund / expenses : 0;
-    
-    res.json({
-      byCurrency: metrics,
-      monthly: {
-        income: parseFloat(income),
-        expenses: parseFloat(expenses),
-        balance: parseFloat(income) - parseFloat(expenses),
-        savingsRate: savingsRate.toFixed(2)
-      },
-      emergencyFund: {
-        months: emergencyFundMonths.toFixed(1),
-        byCurrency: emergencyFundByCurrency
-      }
+    // Calcular meses de reserva por moeda
+    Object.keys(metrics).forEach(currency => {
+      const fund = emergencyFundByCurrency[currency] || 0;
+      const expenses = metrics[currency].monthly.expenses || 0;
+      metrics[currency].emergencyFundMonths = expenses > 0 ? (fund / expenses).toFixed(1) : '0.0';
+      metrics[currency].emergencyFundValue = fund;
     });
+    
+    res.json(metrics);
   } catch (error) {
     console.error('Erro ao calcular métricas:', error);
     res.status(500).json({ error: 'Erro ao calcular métricas' });

@@ -933,8 +933,8 @@ app.post('/api/budgets', authMiddleware, async (req, res) => {
       // entityType 'source' não é suportado na tabela budgets atual
     }
     
-    // Converter strings vazias em null
-    categoryId = categoryId || null;
+    // Converter para número e tratar strings vazias
+    categoryId = categoryId ? parseInt(categoryId) : null;
     
     // Se month vem como "2026-02", extrair month e year
     if (typeof month === 'string' && month.includes('-')) {

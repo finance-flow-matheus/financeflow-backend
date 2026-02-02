@@ -903,7 +903,7 @@ app.get('/api/achievements', authMiddleware, async (req, res) => {
 app.get('/api/budgets', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, category_id as "categoryId", month, year, limit_amount as "limitAmount", currency FROM budgets WHERE user_id = $1',
+      'SELECT id, category_id as "categoryId", month, year, limit_amount as "limitAmount" FROM budgets WHERE user_id = $1',
       [req.userId]
     );
     res.json(result.rows);
@@ -948,8 +948,8 @@ app.post('/api/budgets', authMiddleware, async (req, res) => {
     }
     
     const result = await pool.query(
-      'INSERT INTO budgets (user_id, category_id, month, year, limit_amount, currency) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, category_id as "categoryId", month, year, limit_amount as "limitAmount", currency',
-      [req.userId, categoryId, month, year, limitAmount, currency]
+      'INSERT INTO budgets (user_id, category_id, month, year, limit_amount) VALUES ($1, $2, $3, $4, $5) RETURNING id, category_id as "categoryId", month, year, limit_amount as "limitAmount"',
+      [req.userId, categoryId, month, year, limitAmount]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -963,7 +963,7 @@ app.put('/api/budgets/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;
     const { limitAmount } = req.body;
     const result = await pool.query(
-      'UPDATE budgets SET limit_amount = $1 WHERE id = $2 AND user_id = $3 RETURNING id, category_id as "categoryId", month, year, limit_amount as "limitAmount", currency',
+      'UPDATE budgets SET limit_amount = $1 WHERE id = $2 AND user_id = $3 RETURNING id, category_id as "categoryId", month, year, limit_amount as "limitAmount"',
       [limitAmount, id, req.userId]
     );
     if (result.rows.length === 0) {

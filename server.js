@@ -63,6 +63,32 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'FinanceFlow API is running' });
 });
 
+// ==================== HELPER FUNCTIONS ====================
+const insertInitialData = async (userId) => {
+  // Criar categorias padrão
+  await pool.query(
+    `INSERT INTO categories (user_id, name, type) VALUES 
+    ($1, 'Alimentação', 'EXPENSE'),
+    ($1, 'Transporte', 'EXPENSE'),
+    ($1, 'Moradia', 'EXPENSE'),
+    ($1, 'Lazer', 'EXPENSE'),
+    ($1, 'Saúde', 'EXPENSE'),
+    ($1, 'Educação', 'EXPENSE'),
+    ($1, 'Outros', 'EXPENSE')`,
+    [userId]
+  );
+  
+  // Criar fontes de renda padrão
+  await pool.query(
+    `INSERT INTO income_sources (user_id, name) VALUES 
+    ($1, 'Salário'),
+    ($1, 'Freelance'),
+    ($1, 'Investimentos'),
+    ($1, 'Outros')`,
+    [userId]
+  );
+};
+
 // ==================== AUTH ====================
 app.post('/api/auth/register', async (req, res) => {
   try {

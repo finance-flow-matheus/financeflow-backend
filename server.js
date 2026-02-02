@@ -910,7 +910,21 @@ app.get('/api/budgets', authMiddleware, async (req, res) => {
 
 app.post('/api/budgets', authMiddleware, async (req, res) => {
   try {
-    const { categoryId, month, year, limitAmount, currency } = req.body;
+    // Aceita tanto o formato antigo (month, year, limitAmount) quanto o novo (month como "2026-02", amount)
+    let { categoryId, month, year, limitAmount, amount, currency } = req.body;
+    
+    // Se month vem como "2026-02", extrair month e year
+    if (typeof month === 'string' && month.includes('-')) {
+      const [yearStr, monthStr] = month.split('-');
+      year = parseInt(yearStr);
+      month = parseInt(monthStr);
+    }
+    
+    // Se amount foi enviado ao invés de limitAmount
+    if (amount && !limitAmount) {
+      limitAmount = amount;
+    }
+    
     const result = await pool.query(
       'INSERT INTO budgets (user_id, category_id, month, year, limit_amount, currency) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, category_id as "categoryId", month, year, limit_amount as "limitAmount", currency',
       [req.userId, categoryId, month, year, limitAmount, currency]

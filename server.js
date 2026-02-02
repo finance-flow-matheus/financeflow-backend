@@ -505,7 +505,19 @@ app.get('/api/exchanges', authMiddleware, async (req, res) => {
       'SELECT * FROM exchange_operations WHERE user_id = $1 ORDER BY date DESC, created_at DESC',
       [req.userId]
     );
-    res.json(result.rows);
+    
+    // Mapear campos do banco para formato esperado pelo frontend
+    const mappedRows = result.rows.map(row => ({
+      id: row.id,
+      sourceAccountId: row.from_account_id,
+      sourceAmount: parseFloat(row.from_amount),
+      destinationAccountId: row.to_account_id,
+      destinationAmount: parseFloat(row.to_amount),
+      date: row.date,
+      createdAt: row.created_at
+    }));
+    
+    res.json(mappedRows);
   } catch (error) {
     console.error('Erro ao buscar câmbios:', error);
     res.status(500).json({ error: 'Erro ao buscar operações de câmbio' });

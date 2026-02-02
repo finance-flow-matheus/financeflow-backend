@@ -918,6 +918,9 @@ app.post('/api/budgets', authMiddleware, async (req, res) => {
     // Aceita tanto o formato antigo (month, year, limitAmount) quanto o novo (month como "2026-02", amount)
     let { categoryId, month, year, limitAmount, amount, currency } = req.body;
     
+    // Converter strings vazias em null
+    categoryId = categoryId || null;
+    
     // Se month vem como "2026-02", extrair month e year
     if (typeof month === 'string' && month.includes('-')) {
       const [yearStr, monthStr] = month.split('-');
@@ -986,7 +989,12 @@ app.get('/api/goals', authMiddleware, async (req, res) => {
 
 app.post('/api/goals', authMiddleware, async (req, res) => {
   try {
-    const { name, targetAmount, currency, deadline, category, accountId } = req.body;
+    let { name, targetAmount, currency, deadline, category, accountId } = req.body;
+    
+    // Converter strings vazias em null
+    accountId = accountId || null;
+    category = category || null;
+    deadline = deadline || null;
     
     // Tenta inserir com account_id, se falhar, tenta sem
     try {
@@ -1036,7 +1044,10 @@ app.get('/api/assets', authMiddleware, async (req, res) => {
 
 app.post('/api/assets', authMiddleware, async (req, res) => {
   try {
-    const { name, value, currency, category } = req.body;
+    let { name, value, currency, category } = req.body;
+    
+    // Converter strings vazias em null
+    category = category || null;
     const result = await pool.query(
       'INSERT INTO assets (user_id, name, type, value, currency) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, type as category, value, currency',
       [req.userId, name, category, value, currency]
@@ -1075,7 +1086,10 @@ app.get('/api/liabilities', authMiddleware, async (req, res) => {
 
 app.post('/api/liabilities', authMiddleware, async (req, res) => {
   try {
-    const { name, amount, currency, category } = req.body;
+    let { name, amount, currency, category } = req.body;
+    
+    // Converter strings vazias em null
+    category = category || null;
     const result = await pool.query(
       'INSERT INTO liabilities (user_id, name, type, amount, currency) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, type as category, amount, currency',
       [req.userId, name, category, amount, currency]

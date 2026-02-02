@@ -382,7 +382,12 @@ app.post('/api/transactions', authMiddleware, async (req, res) => {
   try {
     await client.query('BEGIN');
     
-    const { accountId, categoryId, incomeSourceId, type, amount, description, date } = req.body;
+    let { accountId, categoryId, incomeSourceId, type, amount, description, date } = req.body;
+    
+    // Converter strings vazias em null
+    accountId = accountId || null;
+    categoryId = categoryId || null;
+    incomeSourceId = incomeSourceId || null;
     
     // Inserir transação
     const result = await client.query(

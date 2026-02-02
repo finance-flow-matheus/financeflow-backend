@@ -903,10 +903,18 @@ app.get('/api/achievements', authMiddleware, async (req, res) => {
 app.get('/api/budgets', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, category_id as "categoryId", month, year, limit_amount as "limitAmount", currency FROM budgets WHERE user_id = $1',
+      'SELECT id, category_id, month, year, limit_amount, currency FROM budgets WHERE user_id = $1',
       [req.userId]
     );
-    res.json(result.rows);
+    // Mapear para o formato que o frontend espera
+    const budgets = result.rows.map(row => ({
+      id: row.id.toString(),
+      entityId: row.category_id ? row.category_id.toString() : '',
+      entityType: 'category',
+      amount: parseFloat(row.limit_amount),
+      currency: row.currency || 'BRL'
+    }));
+    res.json(budgets);
   } catch (error) {
     console.error('Erro ao buscar orçamentos:', error);
     res.status(500).json({ error: 'Erro ao buscar orçamentos' });
@@ -948,10 +956,18 @@ app.post('/api/budgets', authMiddleware, async (req, res) => {
     }
     
     const result = await pool.query(
-      'INSERT INTO budgets (user_id, category_id, month, year, limit_amount, currency) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, category_id as "categoryId", month, year, limit_amount as "limitAmount", currency',
+      'INSERT INTO budgets (user_id, category_id, month, year, limit_amount, currency) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, category_id, limit_amount, currency',
       [req.userId, categoryId, month, year, limitAmount, currency || 'BRL']
     );
-    res.status(201).json(result.rows[0]);
+    // Retornar no formato que o frontend espera
+    const budget = {
+      id: result.rows[0].id.toString(),
+      entityId: result.rows[0].category_id ? result.rows[0].category_id.toString() : '',
+      entityType: 'category',
+      amount: parseFloat(result.rows[0].limit_amount),
+      currency: result.rows[0].currency || 'BRL'
+    };
+    res.status(201).json(budget);
   } catch (error) {
     console.error('Erro ao criar orçamento:', error);
     res.status(500).json({ error: 'Erro ao criar orçamento', details: error.message });

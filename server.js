@@ -915,8 +915,15 @@ app.get('/api/budgets', authMiddleware, async (req, res) => {
 
 app.post('/api/budgets', authMiddleware, async (req, res) => {
   try {
-    // Aceita tanto o formato antigo (month, year, limitAmount) quanto o novo (month como "2026-02", amount)
-    let { categoryId, month, year, limitAmount, amount, currency } = req.body;
+    let { categoryId, month, year, limitAmount, amount, currency, entityId, entityType } = req.body;
+    
+    // Se veio no formato do frontend (entityId, entityType, amount)
+    if (entityId && entityType) {
+      if (entityType === 'category') {
+        categoryId = entityId;
+      }
+      // entityType 'source' não é suportado na tabela budgets atual
+    }
     
     // Converter strings vazias em null
     categoryId = categoryId || null;
@@ -926,6 +933,13 @@ app.post('/api/budgets', authMiddleware, async (req, res) => {
       const [yearStr, monthStr] = month.split('-');
       year = parseInt(yearStr);
       month = parseInt(monthStr);
+    }
+    
+    // Se não tem month/year, usar mês/ano atual
+    if (!month || !year) {
+      const now = new Date();
+      month = month || now.getMonth() + 1;
+      year = year || now.getFullYear();
     }
     
     // Se amount foi enviado ao invés de limitAmount
@@ -940,7 +954,7 @@ app.post('/api/budgets', authMiddleware, async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Erro ao criar orçamento:', error);
-    res.status(500).json({ error: 'Erro ao criar orçamento' });
+    res.status(500).json({ error: 'Erro ao criar orçamento', details: error.message });
   }
 });
 

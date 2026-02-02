@@ -367,7 +367,7 @@ app.delete('/api/income-sources/:id', authMiddleware, async (req, res) => {
 app.get('/api/transactions', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM transactions WHERE user_id = $1 ORDER BY date DESC, created_at DESC',
+      'SELECT id, user_id as "userId", account_id as "accountId", category_id as "categoryId", income_source_id as "incomeSourceId", type, amount, description, date, created_at as "createdAt" FROM transactions WHERE user_id = $1 ORDER BY date DESC, created_at DESC',
       [req.userId]
     );
     res.json(result.rows);

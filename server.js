@@ -982,14 +982,25 @@ app.get('/api/goals', authMiddleware, async (req, res) => {
 app.post('/api/goals', authMiddleware, async (req, res) => {
   try {
     const { name, targetAmount, currency, deadline, category, accountId } = req.body;
-    const result = await pool.query(
-      'INSERT INTO financial_goals (user_id, name, target_amount, currency, deadline, category, account_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, target_amount as "targetAmount", current_amount as "currentAmount", currency, deadline, category, status, account_id as "accountId"',
-      [req.userId, name, targetAmount, currency || 'BRL', deadline || null, category, accountId || null]
-    );
-    res.status(201).json(result.rows[0]);
+    
+    // Tenta inserir com account_id, se falhar, tenta sem
+    try {
+      const result = await pool.query(
+        'INSERT INTO financial_goals (user_id, name, target_amount, currency, deadline, category, account_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, target_amount as "targetAmount", current_amount as "currentAmount", currency, deadline, category, status, account_id as "accountId"',
+        [req.userId, name, targetAmount, currency || 'BRL', deadline || null, category, accountId || null]
+      );
+      res.status(201).json(result.rows[0]);
+    } catch (colError) {
+      // Se falhar (coluna account_id não existe), tenta sem ela
+      const result = await pool.query(
+        'INSERT INTO financial_goals (user_id, name, target_amount, currency, deadline, category) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, target_amount as "targetAmount", current_amount as "currentAmount", currency, deadline, category, status',
+        [req.userId, name, targetAmount, currency || 'BRL', deadline || null, category]
+      );
+      res.status(201).json(result.rows[0]);
+    }
   } catch (error) {
     console.error('Erro ao criar meta:', error);
-    res.status(500).json({ error: 'Erro ao criar meta' });
+    res.status(500).json({ error: 'Erro ao criar meta', details: error.message });
   }
 });
 

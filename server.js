@@ -203,8 +203,67 @@ app.post('/api/auth/reset-password', async (req, res) => {
 // ==================== ACCOUNTS ====================
 app.get('/api/accounts', authMiddleware, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM accounts WHERE user_id = $1 ORDER BY created_at', [req.userId]);
-    res.json(result.rows);
+    const accountsResult = await pool.query('SELECT * FROM accounts WHERE user_id = $1 ORDER BY created_at', [req.userId]);
+    
+    // Calcular saldo efetivo baseado em transações até hoje
+    const today = new Date().toISOString().split('T')[0];
+    
+    const accountsWithBalance = await Promise.all(accountsResult.rows.map(async (account) => {
+      // Buscar todas as transações até hoje
+      const transactionsResult = await pool.query(
+        'SELECT type, amount FROM transactions WHERE account_id = $1 AND date <= $2',
+        [account.id, today]
+      );
+      
+      // Buscar exchanges até hoje
+      const exchangesFromResult = await pool.query(
+        'SELECT from_amount FROM exchange_operations WHERE from_account_id = $1 AND date <= $2',
+        [account.id, today]
+      );
+      const exchangesToResult = await pool.query(
+        'SELECT to_amount FROM exchange_operations WHERE to_account_id = $1 AND date <= $2',
+        [account.id, today]
+      );
+      
+      // Calcular saldo inicial (do banco)
+      let effectiveBalance = parseFloat(account.balance);
+      
+      // Subtrair transações futuras
+      const futureTransactions = await pool.query(
+        'SELECT type, amount FROM transactions WHERE account_id = $1 AND date > $2',
+        [account.id, today]
+      );
+      
+      futureTransactions.rows.forEach(t => {
+        const change = t.type.toUpperCase() === 'INCOME' ? -parseFloat(t.amount) : parseFloat(t.amount);
+        effectiveBalance += change;
+      });
+      
+      // Subtrair exchanges futuros
+      const futureExchangesFrom = await pool.query(
+        'SELECT from_amount FROM exchange_operations WHERE from_account_id = $1 AND date > $2',
+        [account.id, today]
+      );
+      const futureExchangesTo = await pool.query(
+        'SELECT to_amount FROM exchange_operations WHERE to_account_id = $1 AND date > $2',
+        [account.id, today]
+      );
+      
+      futureExchangesFrom.rows.forEach(e => {
+        effectiveBalance += parseFloat(e.from_amount);
+      });
+      
+      futureExchangesTo.rows.forEach(e => {
+        effectiveBalance -= parseFloat(e.to_amount);
+      });
+      
+      return {
+        ...account,
+        balance: effectiveBalance
+      };
+    }));
+    
+    res.json(accountsWithBalance);
   } catch (error) {
     console.error('Erro ao buscar contas:', error);
     res.status(500).json({ error: 'Erro ao buscar contas' });

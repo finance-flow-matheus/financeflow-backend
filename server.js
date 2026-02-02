@@ -396,7 +396,7 @@ app.post('/api/transactions', authMiddleware, async (req, res) => {
     );
     
     // Atualizar saldo da conta
-    const balanceChange = type === 'income' ? amount : -amount;
+    const balanceChange = type.toUpperCase() === 'INCOME' ? amount : -amount;
     await client.query(
       'UPDATE accounts SET balance = balance + $1 WHERE id = $2 AND user_id = $3',
       [balanceChange, accountId, req.userId]
